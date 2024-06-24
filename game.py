@@ -15,48 +15,71 @@ MOVE_KEYS = {
     pygame.K_a: (0, -1),
     pygame.K_d: (0, 1),
 }
-Enemy_movement = 3000
+Enemy_movement = 2000
 
 class GameMap:
     def __init__(self, width, height):
         self.width = width
         self.height = height
-        self.grid = [[EMPTY for _ in range(width)] for _ in range(height)]
+        self.grid = self.generate_maze()
         self.player_pos = (1, 1)
         self.grid[1][1] = PLAYER
-        self.grid[height-2][width-2] = FINISH
-        self.enemies = self.spawn_enemies()
+        self.finish_pos = (height-2, width-2)
+        self.grid[self.finish_pos[0]][self.finish_pos[1]] = FINISH
+        self.enemies = self.initialize_enemies()
         self.noise_level = 0
         self.noise_display_time = 0
         self.last_enemy_move_time = pygame.time.get_ticks()
         self.last_player_move_time = pygame.time.get_ticks()
 
-    def spawn_enemies(self):
+    def generate_maze(self):
+        def carve_passages_from(cx, cy, grid):
+            directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+            random.shuffle(directions)
+            for direction in directions:
+                nx, ny = cx + direction[0] * 2, cy + direction[1] * 2
+                if 1 <= nx < self.width and 1 <= ny < self.height and grid[ny][nx] == WALL:
+                    grid[ny - direction[1]][nx - direction[0]] = EMPTY
+                    grid[ny][nx] = EMPTY
+                    carve_passages_from(nx, ny, grid)
+
+        grid = [[WALL for _ in range(self.width)] for _ in range(self.height)]
+        grid[1][1] = EMPTY
+        carve_passages_from(1, 1, grid)
+
+        return grid
+
+    def initialize_enemies(self):
         enemies = []
         num_enemies = 3
         for _ in range(num_enemies):
-            path_length = random.randint(4, 6)
-            path = self.generate_random_path(path_length)
-            if path:
-                enemies.append({'path': path, 'current_step': 0, 'detection_range': 1})
+            while True:
+                path_length = random.randint(4, 6)
+                path = self.generate_random_path(path_length)
+                if path:
+                    enemies.append({'path': path, 'current_step': 0, 'detection_range': 1})
+                    break
         return enemies
 
     def generate_random_path(self, length):
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
         start_pos = (random.randint(1, self.width-2), random.randint(1, self.height-2))
+        while start_pos == self.player_pos or start_pos == self.finish_pos:
+            start_pos = (random.randint(1, self.width-2), random.randint(1, self.height-2))
         path = [start_pos]
 
         for _ in range(length - 1):
             last_x, last_y = path[-1]
             direction = random.choice(directions)
             new_x, new_y = last_x + direction[0], last_y + direction[1]
-            if 0 < new_x < self.width-1 and 0 < new_y < self.height-1 and self.grid[new_x][new_y] == EMPTY:
-                path.append((new_x, new_y))
-            else:
-                break
+            if 0 < new_x < self.width-1 and 0 < new_y < self.height-1:
+                if (new_x, new_y) != self.player_pos and (new_x, new_y) != self.finish_pos:
+                    path.append((new_x, new_y))
+                else:
+                    break
 
         if len(path) < length:
-            return None
+            return None 
         return path
     
     def move_player(self, dx, dy):
@@ -69,6 +92,10 @@ class GameMap:
                 self.noise_level += 1
                 self.noise_display_time = pygame.time.get_ticks()
                 self.last_player_move_time = pygame.time.get_ticks()
+                if (new_x, new_y) == self.finish_pos:
+                    print("Congratulations! You reached the finish line.")
+                    pygame.quit()
+                    sys.exit()
             elif self.grid[new_x][new_y] == ENEMY:
                 print("Game over! You were detected by an enemy.")
                 pygame.quit()
@@ -91,7 +118,6 @@ class GameMap:
 
                 enemy['current_step'] = next_step
 
-                # Check noise detection
                 if self.noise_level > 0:
                     player_x, player_y = self.player_pos
                     if abs(player_x - next_pos[0]) + abs(player_y - next_pos[1]) <= enemy['detection_range']:
@@ -117,6 +143,7 @@ class GameMap:
 
         self.highlight_movement(screen)
 
+        # Display noise level for 5 seconds after the last player move
         current_time = pygame.time.get_ticks()
         if current_time - self.noise_display_time <= 5000:
             font = pygame.font.Font(None, 36)
