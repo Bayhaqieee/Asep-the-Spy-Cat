@@ -125,18 +125,19 @@ class GameMap:
     
     def highlight_movement(self,screen):
         px, py = self.player_pos
-        surroundings = [
-            (px-1, py), (px+1, py), (px, py-1), (px, py+1),
-            (px-1, py-1), (px-1, py+1), (px+1, py-1), (px+1, py+1)
-        ]
-        for sx, sy in surroundings:
-            if 0 <= sx < self.width and 0 <= sy < self.height:
-                rect = pygame.Rect(sy * CELL_SIZE, sx * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-                pygame.draw.rect(screen,(255,255,0),rect,3)
+        noise_radius = self.noise_level
+
+        for dx in range(-noise_radius, noise_radius + 1):
+            for dy in range(-noise_radius, noise_radius + 1):
+                if abs(dx) + abs(dy) <= noise_radius:
+                    nx, ny = px + dx, py + dy
+                    if 0 <= nx < self.width and 0 <= ny < self.height:
+                        rect = pygame.Rect(ny * CELL_SIZE, nx * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+                        pygame.draw.rect(screen, (255, 255, 0), rect, 3)
     
     def update_noise(self):
         current_time = pygame.time.get_ticks()
-        if current_time - self.last_player_move_time >= 2000:
+        if current_time - self.last_player_move_time >= 1500:
             self.noise_level = max(0, self.noise_level - 1)
 
 def main():
