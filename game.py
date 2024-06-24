@@ -1,3 +1,21 @@
+import pygame
+import sys
+
+# Define constants
+WIDTH, HEIGHT = 10, 10
+CELL_SIZE = 40
+WALL, EMPTY, PLAYER, ENEMY, FINISH = '#', '.', 'P', 'E', 'F'
+MOVE_KEYS = {
+    pygame.K_UP: (-1, 0),
+    pygame.K_DOWN: (1, 0),
+    pygame.K_LEFT: (0, -1),
+    pygame.K_RIGHT: (0, 1),
+    pygame.K_w: (-1, 0),
+    pygame.K_s: (1, 0),
+    pygame.K_a: (0, -1),
+    pygame.K_d: (0, 1),
+}
+
 class GameMap:
     def __init__(self, width, height):
         self.width = width
