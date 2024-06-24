@@ -131,10 +131,40 @@ class GameMap:
                 pygame.draw.rect(screen,(255,255,0),rect,3)
     
     def update_noise(self):
-        pass
+        if self.noise_cooldown >= 5:
+            self.noise_level = max(0, self.noise_level - 1)
+            self.noise_cooldown = 0
+        else:
+            self.noise_cooldown += 1
 
 def main():
-    pass
-
+    pygame.init()
+    screen = pygame.display.set_mode((WIDTH * CELL_SIZE, HEIGHT * CELL_SIZE, CELL_SIZE, CELL_SIZE))
+    pygame.display.set_caption("Stealth Game")
+    clock = pygame.time.Clock()
+    
+    game_map = GameMap(WIDTH, HEIGHT)
+    running = True
+    
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key in MOVE_KEYS:
+                    dx, dy = MOVE_KEYS[event.key]
+                    game_map.move_player(dx, dy)
+        
+        game_map.move_enemies()
+        game_map.update_noise()
+        
+        screen.fill((255,255,255))
+        game_map.render(screen)
+        pygame.display.flip()
+        clock.tick(180)
+        
+    pygame.quit()
+    sys.exit()
+    
 if __name__ == "__main__":
     main()
