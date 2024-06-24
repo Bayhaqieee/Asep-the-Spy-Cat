@@ -2,7 +2,7 @@ import pygame
 import sys
 import random
 
-WIDTH, HEIGHT = 10, 10
+WIDTH, HEIGHT = 15, 15
 CELL_SIZE = 40
 WALL, EMPTY, PLAYER, ENEMY, FINISH = '#', '.', 'P', 'E', 'F'
 MOVE_KEYS = {
@@ -26,7 +26,7 @@ class GameMap:
         self.grid[1][1] = PLAYER
         self.finish_pos = (height-2, width-2)
         self.grid[self.finish_pos[0]][self.finish_pos[1]] = FINISH
-        self.enemies = self.initialize_enemies()
+        self.enemies = self.summon_enemies()
         self.noise_level = 0
         self.noise_display_time = 0
         self.last_enemy_move_time = pygame.time.get_ticks()
@@ -49,7 +49,7 @@ class GameMap:
 
         return grid
 
-    def initialize_enemies(self):
+    def summon_enemies(self):
         enemies = []
         num_enemies = 3
         for _ in range(num_enemies):
@@ -64,22 +64,28 @@ class GameMap:
     def generate_random_path(self, length):
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
         start_pos = (random.randint(1, self.width-2), random.randint(1, self.height-2))
-        while start_pos == self.player_pos or start_pos == self.finish_pos:
+        while start_pos == self.player_pos or start_pos == self.finish_pos or self.grid[start_pos[1]][start_pos[0]] == WALL:
             start_pos = (random.randint(1, self.width-2), random.randint(1, self.height-2))
         path = [start_pos]
 
         for _ in range(length - 1):
             last_x, last_y = path[-1]
-            direction = random.choice(directions)
+            valid_directions = [direction for direction in directions
+                                if 0 < last_x + direction[0] < self.width-1
+                                and 0 < last_y + direction[1] < self.height-1
+                                and self.grid[last_y + direction[1]][last_x + direction[0]] != WALL]
+
+            if not valid_directions:
+                break
+
+            direction = random.choice(valid_directions)
             new_x, new_y = last_x + direction[0], last_y + direction[1]
-            if 0 < new_x < self.width-1 and 0 < new_y < self.height-1:
-                if (new_x, new_y) != self.player_pos and (new_x, new_y) != self.finish_pos:
-                    path.append((new_x, new_y))
-                else:
-                    break
+
+            if (new_x, new_y) != self.player_pos and (new_x, new_y) != self.finish_pos:
+                path.append((new_x, new_y))
 
         if len(path) < length:
-            return None 
+            return None  # Path generation failed, retry with a new enemy
         return path
     
     def move_player(self, dx, dy):
@@ -112,9 +118,9 @@ class GameMap:
                 current_pos = path[current_step]
                 next_pos = path[next_step]
 
-                if self.grid[current_pos[0]][current_pos[1]] == ENEMY:
-                    self.grid[current_pos[0]][current_pos[1]] = EMPTY
-                self.grid[next_pos[0]][next_pos[1]] = ENEMY
+                if self.grid[current_pos[1]][current_pos[0]] == ENEMY:
+                    self.grid[current_pos[1]][current_pos[0]] = EMPTY
+                self.grid[next_pos[1]][next_pos[0]] = ENEMY
 
                 enemy['current_step'] = next_step
 
@@ -143,7 +149,6 @@ class GameMap:
 
         self.highlight_movement(screen)
 
-        # Display noise level for 5 seconds after the last player move
         current_time = pygame.time.get_ticks()
         if current_time - self.noise_display_time <= 5000:
             font = pygame.font.Font(None, 36)
