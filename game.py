@@ -15,6 +15,7 @@ MOVE_KEYS = {
     pygame.K_a: (0, -1),
     pygame.K_d: (0, 1),
 }
+Enemy_movement = 3000
 
 class GameMap:
     def __init__(self, width, height):
@@ -35,7 +36,7 @@ class GameMap:
             path_length = random.randint(3, 6)
             path = self.generate_random_path(path_length)
             if path:
-                enemies.append({'path': path, 'current_step': 0, 'detection_range': 3})
+                enemies.append({'path': path, 'current_step': 0, 'detection_range': 1})
         return enemies
 
     def generate_random_path(self, length):
@@ -71,29 +72,45 @@ class GameMap:
                 sys.exit()
 
     def move_enemies(self):
-        for enemy in self.enemies:
-            path = enemy['path']
-            current_step = enemy['current_step']
-            next_step = (current_step + 1) % len(path)
-            current_pos = path[current_step]
-            next_pos = path[next_step]
+        current_time = pygame.time.get_ticks()
+        if current_time - self.last_enemy_move_time >= Enemy_movement:
+            self.last_enemy_move_time = current_time
+            for enemy in self.enemies:
+                path = enemy['path']
+                current_step = enemy['current_step']
+                next_step = (current_step + 1) % len(path)
+                current_pos = path[current_step]
+                next_pos = path[next_step]
 
-            if self.grid[current_pos[0]][current_pos[1]] == ENEMY:
-                self.grid[current_pos[0]][current_pos[1]] = EMPTY
-            self.grid[next_pos[0]][next_pos[1]] = ENEMY
+                if self.grid[current_pos[0]][current_pos[1]] == ENEMY:
+                    self.grid[current_pos[0]][current_pos[1]] = EMPTY
+                self.grid[next_pos[0]][next_pos[1]] = ENEMY
 
-            enemy['current_step'] = next_step
+                enemy['current_step'] = next_step
 
-            # Check noise detection
-            if self.noise_level > 0:
-                player_x, player_y = self.player_pos
-                if abs(player_x - next_pos[0]) + abs(player_y - next_pos[1]) <= enemy['detection_range']:
-                    print("Game over! You were detected by an enemy.")
-                    pygame.quit()
-                    sys.exit()
+                # Check noise detection
+                if self.noise_level > 0:
+                    player_x, player_y = self.player_pos
+                    if abs(player_x - next_pos[0]) + abs(player_y - next_pos[1]) <= enemy['detection_range']:
+                        print("Game over! You were detected by an enemy.")
+                        pygame.quit()
+                        sys.exit()
                     
     def render(self, screen):
-        pass
+        for y in range(self.height):
+            for x in range(self.width):
+                rect = pygame.Rect(x * CELL_SIZE, y * CELL_SIZE,CELL_SIZE,CELL_SIZE)
+                if self.grid[y][x] == WALL:
+                    pygame.draw.rect(screen, (100,100,100), rect)
+                elif self.grid[y][x] == PLAYER:
+                    pygame.draw.rect(screen, (0,255,0), rect)
+                elif self.grid[y][x] == ENEMY:
+                    pygame.draw.rect(screen, (255,0,0), rect)
+                elif self.grid[y][x] == FINISH:
+                    pygame.draw.rect(screen, (0,0,255), rect)
+                else:
+                    pygame.draw.rect(screen, (200,200,200), rect)
+                pygame.draw.rect(screen, (0,0,0),rect,1)
 
     def update_noise(self):
         pass
