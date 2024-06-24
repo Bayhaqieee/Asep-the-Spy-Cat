@@ -27,8 +27,9 @@ class GameMap:
         self.grid[height-2][width-2] = FINISH
         self.enemies = self.spawn_enemies()
         self.noise_level = 0
-        self.noise_cooldown = 0
+        self.noise_display_time = 0
         self.last_enemy_move_time = pygame.time.get_ticks()
+        self.last_player_move_time = pygame.time.get_ticks()
 
     def spawn_enemies(self):
         enemies = []
@@ -66,7 +67,8 @@ class GameMap:
                 self.player_pos = (new_x, new_y)
                 self.grid[new_x][new_y] = PLAYER
                 self.noise_level += 1
-                self.noise_cooldown = 0
+                self.noise_display_time = pygame.time.get_ticks()
+                self.last_player_move_time = pygame.time.get_ticks()
             elif self.grid[new_x][new_y] == ENEMY:
                 print("Game over! You were detected by an enemy.")
                 pygame.quit()
@@ -100,24 +102,26 @@ class GameMap:
     def render(self, screen):
         for y in range(self.height):
             for x in range(self.width):
-                rect = pygame.Rect(x * CELL_SIZE, y * CELL_SIZE,CELL_SIZE,CELL_SIZE)
+                rect = pygame.Rect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE)
                 if self.grid[y][x] == WALL:
-                    pygame.draw.rect(screen, (100,100,100), rect)
+                    pygame.draw.rect(screen, (100, 100, 100), rect)
                 elif self.grid[y][x] == PLAYER:
-                    pygame.draw.rect(screen, (0,255,0), rect)
+                    pygame.draw.rect(screen, (0, 255, 0), rect)
                 elif self.grid[y][x] == ENEMY:
-                    pygame.draw.rect(screen, (255,0,0), rect)
+                    pygame.draw.rect(screen, (255, 0, 0), rect)
                 elif self.grid[y][x] == FINISH:
-                    pygame.draw.rect(screen, (0,0,255), rect)
+                    pygame.draw.rect(screen, (0, 0, 255), rect)
                 else:
-                    pygame.draw.rect(screen, (200,200,200), rect)
-                pygame.draw.rect(screen, (0,0,0),rect,1)
-        
+                    pygame.draw.rect(screen, (200, 200, 200), rect)
+                pygame.draw.rect(screen, (0, 0, 0), rect, 1)
+
         self.highlight_movement(screen)
-        
-        font = pygame.font.Font(None, 36)
-        noise_text = font.render(f"Noise Level: {self.noise_level}", True, (0, 0, 0))
-        screen.blit(noise_text, (10, 10))
+
+        current_time = pygame.time.get_ticks()
+        if current_time - self.noise_display_time <= 5000:
+            font = pygame.font.Font(None, 36)
+            noise_text = font.render(f"Noise Level: {self.noise_level}", True, (0, 0, 0))
+            screen.blit(noise_text, (10, 10))
     
     def highlight_movement(self,screen):
         px, py = self.player_pos
@@ -131,15 +135,13 @@ class GameMap:
                 pygame.draw.rect(screen,(255,255,0),rect,3)
     
     def update_noise(self):
-        if self.noise_cooldown >= 5:
+        current_time = pygame.time.get_ticks()
+        if current_time - self.last_player_move_time >= 2000:
             self.noise_level = max(0, self.noise_level - 1)
-            self.noise_cooldown = 0
-        else:
-            self.noise_cooldown += 1
 
 def main():
     pygame.init()
-    screen = pygame.display.set_mode((WIDTH * CELL_SIZE, HEIGHT * CELL_SIZE, CELL_SIZE, CELL_SIZE))
+    screen = pygame.display.set_mode((WIDTH * CELL_SIZE, HEIGHT * CELL_SIZE))
     pygame.display.set_caption("Stealth Game")
     clock = pygame.time.Clock()
     
