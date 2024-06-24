@@ -28,12 +28,13 @@ class GameMap:
         self.enemies = self.spawn_enemies()
         self.noise_level = 0
         self.noise_cooldown = 0
+        self.last_enemy_move_time = pygame.time.get_ticks()
 
     def spawn_enemies(self):
         enemies = []
         num_enemies = 3
         for _ in range(num_enemies):
-            path_length = random.randint(3, 6)
+            path_length = random.randint(4, 6)
             path = self.generate_random_path(path_length)
             if path:
                 enemies.append({'path': path, 'current_step': 0, 'detection_range': 1})
@@ -111,7 +112,24 @@ class GameMap:
                 else:
                     pygame.draw.rect(screen, (200,200,200), rect)
                 pygame.draw.rect(screen, (0,0,0),rect,1)
-
+        
+        self.highlight_movement(screen)
+        
+        font = pygame.font.Font(None, 36)
+        noise_text = font.render(f"Noise Level: {self.noise_level}", True, (0, 0, 0))
+        screen.blit(noise_text, (10, 10))
+    
+    def highlight_movement(self,screen):
+        px, py = self.player_pos
+        surroundings = [
+            (px-1, py), (px+1, py), (px, py-1), (px, py+1),
+            (px-1, py-1), (px-1, py+1), (px+1, py-1), (px+1, py+1)
+        ]
+        for sx, sy in surroundings:
+            if 0 <= sx < self.width and 0 <= sy < self.height:
+                rect = pygame.Rect(sy * CELL_SIZE, sx * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+                pygame.draw.rect(screen,(255,255,0),rect,3)
+    
     def update_noise(self):
         pass
 
