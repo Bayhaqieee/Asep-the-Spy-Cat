@@ -2,6 +2,7 @@ import pygame
 import sys
 import random
 import time
+from queue import PriorityQueue
 
 WIDTH, HEIGHT = 20, 20
 CELL_SIZE = 30
@@ -64,7 +65,7 @@ class GameMap:
                 path_length = random.randint(4, 6)
                 path = self.generate_random_path(path_length)
                 if path and not self.is_in_front_of_player(path[0]):
-                    enemies.append({'path': path, 'current_step': 0, 'detection_range': 1})
+                    enemies.append({'path': path, 'current_step': 0, 'detection_range': 1, 'chasing': False})
                     break
         return enemies
 
@@ -127,29 +128,26 @@ class GameMap:
                 current_step = enemy['current_step']
 
                 if enemy['chasing']:
-                    player_x, player_y = self.player_pos
-                    enemy_x, enemy_y = path[current_step]
-
-                    if abs(player_x - enemy_x) + abs(player_y - enemy_y) <= enemy['detection_range']:
-                        direction = self.get_direction_towards(player_x, player_y, enemy_x, enemy_y)
-                        next_pos = (enemy_x + direction[0], enemy_y + direction[1])
+                    if enemy['chase_path']:
+                        next_pos = enemy['chase_path'].pop(0)
+                        enemy_x, enemy_y = path[current_step]
 
                         if self.is_position_valid(next_pos):
                             next_x, next_y = next_pos
                             if self.grid[next_y][next_x] == EMPTY or self.grid[next_y][next_x] == PLAYER:
                                 self.grid[enemy_y][enemy_x] = EMPTY
                                 self.grid[next_y][next_x] = ENEMY
-                                enemy['current_step'] = path.index(next_pos)
                                 if self.grid[next_y][next_x] == PLAYER:
                                     print("Game over! You were detected by an enemy.")
                                     pygame.quit()
                                     sys.exit()
+                            if not enemy['chase_path']:
+                                enemy['chasing'] = False
                         else:
                             enemy['chasing'] = False
                     else:
                         enemy['chasing'] = False
-
-                if not enemy['chasing']:
+                else:
                     next_step = (current_step + 1) % len(path)
                     current_pos = path[current_step]
                     next_pos = path[next_step]
@@ -165,15 +163,56 @@ class GameMap:
                     player_x, player_y = self.player_pos
                     if abs(player_x - next_pos[0]) + abs(player_y - next_pos[1]) <= enemy['detection_range']:
                         enemy['chasing'] = True
+                        enemy['chase_path'] = self.a_star_pathfinding((next_pos[0], next_pos[1]), self.player_pos)
                     
+    def a_star_pathfinding(self, start, goal):
+        def heuristic(a, b):
+            return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+        open_set = PriorityQueue()
+        open_set.put((0, start))
+        came_from = {}
+        g_score = {start: 0}
+        f_score = {start: heuristic(start, goal)}
+
+        while not open_set.empty():
+            _, current = open_set.get()
+
+            if current == goal:
+                path = []
+                while current in came_from:
+                    path.append(current)
+                    current = came_from[current]
+                path.reverse()
+                return path
+
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                neighbor = (current[0] + dx, current[1] + dy)
+                tentative_g_score = g_score[current] + 1
+
+                if 0 <= neighbor[0] < self.width and 0 <= neighbor[1] < self.height:
+                    if self.grid[neighbor[1]][neighbor[0]] != WALL and (neighbor not in g_score or tentative_g_score < g_score[neighbor]):
+                        came_from[neighbor] = current
+                        g_score[neighbor] = tentative_g_score
+                        f_score[neighbor] = tentative_g_score + heuristic(neighbor, goal)
+                        open_set.put((f_score[neighbor], neighbor))
+
+        return []
+
+    def is_position_valid(self, pos):
+        x, y = pos
+        return 0 <= x < self.width and 0 <= y < self.height and self.grid[y][x] != WALL
+    
     def render(self, screen):
         for y in range(self.height):
             for x in range(self.width):
                 rect = pygame.Rect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-                if self.grid[y][x] == WALL:
-                    pygame.draw.rect(screen, (100, 100, 100), rect)
-                elif self.grid[y][x] == PLAYER:
+                if self.grid[y][x] == PLAYER:
                     pygame.draw.rect(screen, (0, 255, 0), rect)
+                elif self.grid[y][x] == WALL:
+                    pygame.draw.rect(screen, (139, 69, 19), rect)
+                elif self.grid[y][x] == EMPTY:
+                    pygame.draw.rect(screen, (200, 200, 200), rect)
                 elif self.grid[y][x] == ENEMY:
                     pygame.draw.rect(screen, (255, 0, 0), rect)
                 elif self.grid[y][x] == FINISH:
