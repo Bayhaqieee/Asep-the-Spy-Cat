@@ -6,7 +6,7 @@ from queue import PriorityQueue
 
 WIDTH, HEIGHT = 20, 20
 CELL_SIZE = 30
-WALL, EMPTY, PLAYER, ENEMY, FINISH = '#', '.', 'P', 'E', 'F'
+WALL, EMPTY, PLAYER, PAWN, HUNTER, FINISH = '#', '.', 'P', 'pawn', 'hunter', 'F'
 MOVE_KEYS = {
     pygame.K_UP: (0, -1),
     pygame.K_DOWN: (0, 1),
@@ -18,7 +18,7 @@ MOVE_KEYS = {
     pygame.K_d: (1, 0),
 }
 Enemy_movement = 1500
-Noise_decrease = 250
+Noise_decrease = 500
 
 class GameMap:
     def __init__(self, width, height):
@@ -50,7 +50,6 @@ class GameMap:
         grid[1][1] = EMPTY
         carve_passages_from(1, 1, grid)
 
-        # Add some random openings to ensure multiple paths
         for _ in range(int(self.width * self.height * 0.1)):
             x, y = random.randint(1, self.width-2), random.randint(1, self.height-2)
             grid[y][x] = EMPTY
@@ -59,14 +58,25 @@ class GameMap:
 
     def summon_enemies(self):
         enemies = []
-        num_enemies = 3
-        for _ in range(num_enemies):
+        num_pawns = 3
+        num_hunters = 1
+
+        for _ in range(num_pawns):
             while True:
-                path_length = random.randint(4, 6)
+                path_length = random.randint(3, 6)
                 path = self.generate_random_path(path_length)
                 if path and not self.is_in_front_of_player(path[0]):
-                    enemies.append({'path': path, 'current_step': 0, 'detection_range': 1, 'chasing': False})
+                    enemies.append({'type': PAWN, 'path': path, 'current_step': 0})
                     break
+
+        for _ in range(num_hunters):
+            while True:
+                path_length = random.randint(3, 6)
+                path = self.generate_random_path(path_length)
+                if path and not self.is_in_front_of_player(path[0]):
+                    enemies.append({'type': HUNTER, 'path': path, 'current_step': 0, 'detection_range': 3, 'chasing': False, 'chase_path': []})
+                    break
+
         return enemies
 
     def is_in_front_of_player(self, position):
@@ -126,30 +136,27 @@ class GameMap:
             for enemy in self.enemies:
                 path = enemy['path']
                 current_step = enemy['current_step']
+                current_pos = path[current_step]
 
                 if enemy['chasing']:
                     if enemy['chase_path']:
                         next_pos = enemy['chase_path'].pop(0)
-                        enemy_x, enemy_y = path[current_step]
-
                         if self.is_position_valid(next_pos):
                             next_x, next_y = next_pos
-                            if self.grid[next_y][next_x] == EMPTY or self.grid[next_y][next_x] == PLAYER:
-                                self.grid[enemy_y][enemy_x] = EMPTY
-                                self.grid[next_y][next_x] = ENEMY
-                                if self.grid[next_y][next_x] == PLAYER:
-                                    print("Game over! You were detected by an enemy.")
-                                    pygame.quit()
-                                    sys.exit()
-                            if not enemy['chase_path']:
-                                enemy['chasing'] = False
+                            if self.grid[next_y][next_x] == PLAYER:
+                                print("Game over! You were detected by an enemy.")
+                                pygame.quit()
+                                sys.exit()
+                            self.grid[current_pos[1]][current_pos[0]] = EMPTY
+                            self.grid[next_y][next_x] = ENEMY
+                            enemy['path'] = [next_pos]
+                            enemy['current_step'] = 0
                         else:
                             enemy['chasing'] = False
                     else:
                         enemy['chasing'] = False
                 else:
                     next_step = (current_step + 1) % len(path)
-                    current_pos = path[current_step]
                     next_pos = path[next_step]
 
                     if self.grid[current_pos[1]][current_pos[0]] == ENEMY:
@@ -158,12 +165,12 @@ class GameMap:
 
                     enemy['current_step'] = next_step
 
-                # Check noise detection
                 if self.noise_level > 0 and not enemy['chasing']:
                     player_x, player_y = self.player_pos
-                    if abs(player_x - next_pos[0]) + abs(player_y - next_pos[1]) <= enemy['detection_range']:
+                    enemy_x, enemy_y = path[current_step]
+                    if abs(player_x - enemy_x) + abs(player_y - enemy_y) <= enemy['detection_range']:
                         enemy['chasing'] = True
-                        enemy['chase_path'] = self.a_star_pathfinding((next_pos[0], next_pos[1]), self.player_pos)
+                        enemy['chase_path'] = self.a_star_pathfinding((enemy_x, enemy_y), self.player_pos)
                     
     def a_star_pathfinding(self, start, goal):
         def heuristic(a, b):
@@ -253,7 +260,7 @@ class GameMap:
                 nx, ny = cx + dx, cy + dy
                 if can_propagate(nx, ny):
                     queue.append((nx, ny, dist + 1))
-    
+
     def update_noise(self):
         current_time = pygame.time.get_ticks()
         if self.noise_level > 0 and current_time - self.noise_decay_start_time >= Noise_decrease:
@@ -299,7 +306,8 @@ def main():
     clock = pygame.time.Clock()
 
     main_menu(screen)
-
+    loading_screen(screen)
+    
     game_map = GameMap(WIDTH, HEIGHT)
     running = True
 
