@@ -2,8 +2,8 @@ import pygame
 import sys
 import random
 
-WIDTH, HEIGHT = 15, 15
-CELL_SIZE = 40
+WIDTH, HEIGHT = 20, 20
+CELL_SIZE = 30
 WALL, EMPTY, PLAYER, ENEMY, FINISH = '#', '.', 'P', 'E', 'F'
 MOVE_KEYS = {
     pygame.K_UP: (0, -1),
@@ -196,11 +196,35 @@ class GameMap:
             self.noise_level -= 1
             self.noise_decay_start_time = current_time
 
+def main_menu(screen):
+    font = pygame.font.Font(None, 74)
+    title_text = font.render("Asep the Spy Cat", True, (0, 0, 0))
+    start_button = pygame.Rect(WIDTH * CELL_SIZE // 2 - 100, HEIGHT * CELL_SIZE // 2, 200, 50)
+    start_text = pygame.font.Font(None, 36).render("Start", True, (255, 255, 255))
+
+    while True:
+        screen.fill((255, 255, 255))
+        screen.blit(title_text, (WIDTH * CELL_SIZE // 2 - title_text.get_width() // 2, HEIGHT * CELL_SIZE // 3))
+        pygame.draw.rect(screen, (0, 0, 0), start_button)
+        screen.blit(start_text, (start_button.x + (start_button.width - start_text.get_width()) // 2, start_button.y + (start_button.height - start_text.get_height()) // 2))
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if start_button.collidepoint(event.pos):
+                    return
+
+        pygame.display.flip()
+
 def main():
     pygame.init()
     screen = pygame.display.set_mode((WIDTH * CELL_SIZE, HEIGHT * CELL_SIZE))
-    pygame.display.set_caption("Stealth Game")
+    pygame.display.set_caption("Asep the Spy Cat")
     clock = pygame.time.Clock()
+
+    main_menu(screen)
 
     game_map = GameMap(WIDTH, HEIGHT)
     running = True
