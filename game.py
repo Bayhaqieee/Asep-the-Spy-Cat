@@ -6,17 +6,17 @@ WIDTH, HEIGHT = 15, 15
 CELL_SIZE = 40
 WALL, EMPTY, PLAYER, ENEMY, FINISH = '#', '.', 'P', 'E', 'F'
 MOVE_KEYS = {
-    pygame.K_UP: (-1, 0),
-    pygame.K_DOWN: (1, 0),
-    pygame.K_LEFT: (0, -1),
-    pygame.K_RIGHT: (0, 1),
-    pygame.K_w: (-1, 0),
-    pygame.K_s: (1, 0),
-    pygame.K_a: (0, -1),
-    pygame.K_d: (0, 1),
+    pygame.K_UP: (0, -1),
+    pygame.K_DOWN: (0, 1),
+    pygame.K_LEFT: (-1, 0),
+    pygame.K_RIGHT: (1, 0),
+    pygame.K_w: (0, -1),
+    pygame.K_s: (0, 1),
+    pygame.K_a: (-1, 0),
+    pygame.K_d: (1, 0),
 }
-Enemy_movement = 2000
-Noise_decrease = 1000
+Enemy_movement = 1500
+Noise_decrease = 500
 
 class GameMap:
     def __init__(self, width, height):
@@ -48,6 +48,11 @@ class GameMap:
         grid[1][1] = EMPTY
         carve_passages_from(1, 1, grid)
 
+        # Add some random openings to ensure multiple paths
+        for _ in range(int(self.width * self.height * 0.1)):
+            x, y = random.randint(1, self.width-2), random.randint(1, self.height-2)
+            grid[y][x] = EMPTY
+
         return grid
 
     def summon_enemies(self):
@@ -57,10 +62,14 @@ class GameMap:
             while True:
                 path_length = random.randint(4, 6)
                 path = self.generate_random_path(path_length)
-                if path:
-                    enemies.append({'path': path, 'current_step': 0, 'detection_range': 3})
+                if path and not self.is_in_front_of_player(path[0]):
+                    enemies.append({'path': path, 'current_step': 0, 'detection_range': 1})
                     break
         return enemies
+
+    def is_in_front_of_player(self, position):
+        px, py = self.player_pos
+        return abs(px - position[0]) + abs(py - position[1]) <= 1
 
     def generate_random_path(self, length):
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
