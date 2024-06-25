@@ -1,6 +1,7 @@
 import pygame
 import sys
 import random
+import time
 
 WIDTH, HEIGHT = 20, 20
 CELL_SIZE = 30
@@ -16,7 +17,7 @@ MOVE_KEYS = {
     pygame.K_d: (1, 0),
 }
 Enemy_movement = 1500
-Noise_decrease = 500
+Noise_decrease = 250
 
 class GameMap:
     def __init__(self, width, height):
@@ -124,22 +125,46 @@ class GameMap:
             for enemy in self.enemies:
                 path = enemy['path']
                 current_step = enemy['current_step']
-                next_step = (current_step + 1) % len(path)
-                current_pos = path[current_step]
-                next_pos = path[next_step]
 
-                if self.grid[current_pos[1]][current_pos[0]] == ENEMY:
-                    self.grid[current_pos[1]][current_pos[0]] = EMPTY
-                self.grid[next_pos[1]][next_pos[0]] = ENEMY
+                if enemy['chasing']:
+                    player_x, player_y = self.player_pos
+                    enemy_x, enemy_y = path[current_step]
 
-                enemy['current_step'] = next_step
+                    if abs(player_x - enemy_x) + abs(player_y - enemy_y) <= enemy['detection_range']:
+                        direction = self.get_direction_towards(player_x, player_y, enemy_x, enemy_y)
+                        next_pos = (enemy_x + direction[0], enemy_y + direction[1])
 
-                if self.noise_level > 0:
+                        if self.is_position_valid(next_pos):
+                            next_x, next_y = next_pos
+                            if self.grid[next_y][next_x] == EMPTY or self.grid[next_y][next_x] == PLAYER:
+                                self.grid[enemy_y][enemy_x] = EMPTY
+                                self.grid[next_y][next_x] = ENEMY
+                                enemy['current_step'] = path.index(next_pos)
+                                if self.grid[next_y][next_x] == PLAYER:
+                                    print("Game over! You were detected by an enemy.")
+                                    pygame.quit()
+                                    sys.exit()
+                        else:
+                            enemy['chasing'] = False
+                    else:
+                        enemy['chasing'] = False
+
+                if not enemy['chasing']:
+                    next_step = (current_step + 1) % len(path)
+                    current_pos = path[current_step]
+                    next_pos = path[next_step]
+
+                    if self.grid[current_pos[1]][current_pos[0]] == ENEMY:
+                        self.grid[current_pos[1]][current_pos[0]] = EMPTY
+                    self.grid[next_pos[1]][next_pos[0]] = ENEMY
+
+                    enemy['current_step'] = next_step
+
+                # Check noise detection
+                if self.noise_level > 0 and not enemy['chasing']:
                     player_x, player_y = self.player_pos
                     if abs(player_x - next_pos[0]) + abs(player_y - next_pos[1]) <= enemy['detection_range']:
-                        print("Game over! You were detected by an enemy.")
-                        pygame.quit()
-                        sys.exit()
+                        enemy['chasing'] = True
                     
     def render(self, screen):
         for y in range(self.height):
@@ -217,6 +242,16 @@ def main_menu(screen):
                     return
 
         pygame.display.flip()
+
+def loading_screen(screen):
+    font = pygame.font.Font(None, 74)
+    loading_text = font.render("Loading...", True, (0,0,0))
+    
+    screen.fill((255,255,255))
+    screen.blit(loading_text, (WIDTH*CELL_SIZE // 2 - loading_text.get_width() // 2, HEIGHT * CELL_SIZE // 2))
+    pygame.display.flip()
+    
+    time.sleep(3)
 
 def main():
     pygame.init()
