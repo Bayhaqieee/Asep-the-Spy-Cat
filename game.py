@@ -16,6 +16,7 @@ MOVE_KEYS = {
     pygame.K_d: (0, 1),
 }
 Enemy_movement = 2000
+Noise_decrease = 1000
 
 class GameMap:
     def __init__(self, width, height):
@@ -28,7 +29,7 @@ class GameMap:
         self.grid[self.finish_pos[0]][self.finish_pos[1]] = FINISH
         self.enemies = self.summon_enemies()
         self.noise_level = 0
-        self.noise_display_time = 0
+        self.noise_decay_start_time = 0
         self.last_enemy_move_time = pygame.time.get_ticks()
         self.last_player_move_time = pygame.time.get_ticks()
 
@@ -57,7 +58,7 @@ class GameMap:
                 path_length = random.randint(4, 6)
                 path = self.generate_random_path(path_length)
                 if path:
-                    enemies.append({'path': path, 'current_step': 0, 'detection_range': 1})
+                    enemies.append({'path': path, 'current_step': 0, 'detection_range': 3})
                     break
         return enemies
 
@@ -91,18 +92,18 @@ class GameMap:
     def move_player(self, dx, dy):
         new_x, new_y = self.player_pos[0] + dx, self.player_pos[1] + dy
         if 0 <= new_x < self.width and 0 <= new_y < self.height:
-            if self.grid[new_x][new_y] == EMPTY or self.grid[new_x][new_y] == FINISH:
-                self.grid[self.player_pos[0]][self.player_pos[1]] = EMPTY
+            if self.grid[new_y][new_x] == EMPTY or self.grid[new_y][new_x] == FINISH:
+                self.grid[self.player_pos[1]][self.player_pos[0]] = EMPTY
                 self.player_pos = (new_x, new_y)
-                self.grid[new_x][new_y] = PLAYER
+                self.grid[new_y][new_x] = PLAYER
                 self.noise_level += 1
-                self.noise_display_time = pygame.time.get_ticks()
+                self.noise_decay_start_time = pygame.time.get_ticks()
                 self.last_player_move_time = pygame.time.get_ticks()
                 if (new_x, new_y) == self.finish_pos:
                     print("Congratulations! You reached the finish line.")
                     pygame.quit()
                     sys.exit()
-            elif self.grid[new_x][new_y] == ENEMY:
+            elif self.grid[new_y][new_x] == ENEMY:
                 print("Game over! You were detected by an enemy.")
                 pygame.quit()
                 sys.exit()
@@ -150,37 +151,51 @@ class GameMap:
         self.highlight_movement(screen)
 
         current_time = pygame.time.get_ticks()
-        if current_time - self.noise_display_time <= 5000:
+        if current_time - self.noise_decay_start_time <= 2000:
             font = pygame.font.Font(None, 36)
             noise_text = font.render(f"Noise Level: {self.noise_level}", True, (0, 0, 0))
             screen.blit(noise_text, (10, 10))
     
-    def highlight_movement(self,screen):
+    def highlight_movement(self, screen):
         px, py = self.player_pos
         noise_radius = self.noise_level
 
-        for dx in range(-noise_radius, noise_radius + 1):
-            for dy in range(-noise_radius, noise_radius + 1):
-                if abs(dx) + abs(dy) <= noise_radius:
-                    nx, ny = px + dx, py + dy
-                    if 0 <= nx < self.width and 0 <= ny < self.height:
-                        rect = pygame.Rect(ny * CELL_SIZE, nx * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-                        pygame.draw.rect(screen, (255, 255, 0), rect, 3)
+        def can_propagate(nx, ny):
+            return 0 <= nx < self.width and 0 <= ny < self.height and self.grid[ny][nx] != WALL
+
+        visited = set()
+        queue = [(px, py, 0)]
+
+        while queue:
+            cx, cy, dist = queue.pop(0)
+            if (cx, cy) in visited or dist > noise_radius:
+                continue
+
+            visited.add((cx, cy))
+
+            rect = pygame.Rect(cx * CELL_SIZE, cy * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+            pygame.draw.rect(screen, (255, 255, 0), rect, 3)
+
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nx, ny = cx + dx, cy + dy
+                if can_propagate(nx, ny):
+                    queue.append((nx, ny, dist + 1))
     
     def update_noise(self):
         current_time = pygame.time.get_ticks()
-        if current_time - self.last_player_move_time >= 1500:
-            self.noise_level = max(0, self.noise_level - 1)
+        if self.noise_level > 0 and current_time - self.noise_decay_start_time >= Noise_decrease:
+            self.noise_level -= 1
+            self.noise_decay_start_time = current_time
 
 def main():
     pygame.init()
     screen = pygame.display.set_mode((WIDTH * CELL_SIZE, HEIGHT * CELL_SIZE))
     pygame.display.set_caption("Stealth Game")
     clock = pygame.time.Clock()
-    
+
     game_map = GameMap(WIDTH, HEIGHT)
     running = True
-    
+
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -192,14 +207,14 @@ def main():
         
         game_map.move_enemies()
         game_map.update_noise()
-        
-        screen.fill((255,255,255))
+
+        screen.fill((255, 255, 255))
         game_map.render(screen)
         pygame.display.flip()
-        clock.tick(180)
-        
+        clock.tick(30)
+
     pygame.quit()
     sys.exit()
-    
+
 if __name__ == "__main__":
     main()
