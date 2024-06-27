@@ -71,10 +71,10 @@ class GameMap:
                 
         for _ in range(num_hunters):
             while True:
-                path_length = random.randint(3, 6)
-                path = self.generate_random_path(path_length)
-                if path and not self.is_in_front_of_player(path[0]):
-                    enemies.append({'type': HUNTER, 'path': path, 'current_step': 0, 'detection_range': 3, 'chasing': False, 'chase_path': [], 'active': False})
+                start_pos = (random.randint(1, self.width-2), random.randint(1, self.height-2))
+                if start_pos != self.player_pos and start_pos != self.finish_pos and self.grid[start_pos[1]][start_pos[0]] == EMPTY:
+                    enemies.append({'type': HUNTER, 'pos': start_pos, 'detection_range': 1, 'chasing': False, 'chase_path': [], 'active': False})
+                    self.grid[start_pos[1]][start_pos[0]] = HUNTER
                     break
 
         return enemies
@@ -107,7 +107,7 @@ class GameMap:
                 path.append((new_x, new_y))
 
         if len(path) < length:
-            return None  # Path generation failed, retry with a new enemy
+            return None 
         return path
     
     def move_player(self, dx, dy):
@@ -136,7 +136,7 @@ class GameMap:
             for enemy in self.enemies:
                 if enemy['type'] == PAWN:
                     self.move_pawn(enemy)
-                elif enemy['type'] == HUNTER:
+                elif enemy['type'] == HUNTER and enemy['chasing']:
                     self.move_hunter(enemy)
 
     def move_pawn(self, pawn):
@@ -158,19 +158,16 @@ class GameMap:
             if abs(player_x - enemy_x) + abs(player_y - enemy_y) <= 3:
                 for enemy in self.enemies:
                     if enemy['type'] == HUNTER:
-                        enemy['active'] = True
                         enemy['chasing'] = True
-                        enemy['chase_path'] = self.a_star_pathfinding((enemy_x, enemy_y), self.player_pos)
+                        enemy['chase_path'] = self.a_star_pathfinding((enemy['pos'][1], enemy['pos'][0]), self.player_pos)
 
     def move_hunter(self, hunter):
-        path = hunter['path']
-        current_step = hunter['current_step']
-        current_pos = path[current_step]
+        current_pos = hunter['pos']
 
         if hunter['chasing']:
             if hunter['chase_path']:
                 next_pos = hunter['chase_path'].pop(0)
-                if self.is_position_valid(next_pos):
+                if self.is_position_valid((next_pos[1], next_pos[0])):
                     next_x, next_y = next_pos
                     if self.grid[next_y][next_x] == PLAYER:
                         print("Game over! You were detected by a hunter.")
@@ -178,18 +175,9 @@ class GameMap:
                         sys.exit()
                     self.grid[current_pos[1]][current_pos[0]] = EMPTY
                     self.grid[next_y][next_x] = HUNTER
-                    hunter['path'] = [next_pos]
-                    hunter['current_step'] = 0
+                    hunter['pos'] = (next_x, next_y)
                 else:
                     hunter['chasing'] = False
-            else:
-                hunter['chasing'] = False
-        else:
-            next_step = (current_step + 1) % len(path)
-            next_pos = path[next_step]
-            self.grid[current_pos[1]][current_pos[0]] = EMPTY
-            self.grid[next_pos[1]][next_pos[0]] = HUNTER
-            hunter['current_step'] = next_step
                     
     def a_star_pathfinding(self, start, goal):
         def heuristic(pos1, pos2):
@@ -197,7 +185,7 @@ class GameMap:
             x2, y2 = pos2
             return abs(x1 - x2) + abs(y1 - y2)
 
-        start = (start[1], start[0]) 
+        start = (start[1], start[0])
         goal = (goal[1], goal[0])
 
         open_set = PriorityQueue()
@@ -296,7 +284,7 @@ def main_menu(screen):
     font = pygame.font.Font(None, 74)
     title_text = font.render("Asep the Spy Cat", True, (0, 0, 0))
     start_button = pygame.Rect(WIDTH * CELL_SIZE // 2 - 100, HEIGHT * CELL_SIZE // 2, 200, 50)
-    start_text = pygame.font.Font(None, 36).render("Start", True, (255, 255, 255))
+    start_text = pygame.font.Font(None, 36).render("Start", True, (0, 0, 0))
 
     while True:
         screen.fill((255, 255, 255))
@@ -316,13 +304,12 @@ def main_menu(screen):
 
 def loading_screen(screen):
     font = pygame.font.Font(None, 74)
-    loading_text = font.render("Loading...", True, (0,0,0))
-    
-    screen.fill((255,255,255))
-    screen.blit(loading_text, (WIDTH*CELL_SIZE // 2 - loading_text.get_width() // 2, HEIGHT * CELL_SIZE // 2))
+    loading_text = font.render("Loading...", True, (0, 0, 0))
+    screen.fill((255, 255, 255))
+    screen.blit(loading_text, (WIDTH * CELL_SIZE // 2 - loading_text.get_width() // 2, HEIGHT * CELL_SIZE // 2))
     pygame.display.flip()
-    
-    time.sleep(3)
+
+    time.sleep(2)
 
 def main():
     pygame.init()
