@@ -68,13 +68,13 @@ class GameMap:
                 if path and not self.is_in_front_of_player(path[0]):
                     enemies.append({'type': PAWN, 'path': path, 'current_step': 0})
                     break
-
+                
         for _ in range(num_hunters):
             while True:
                 path_length = random.randint(3, 6)
                 path = self.generate_random_path(path_length)
                 if path and not self.is_in_front_of_player(path[0]):
-                    enemies.append({'type': HUNTER, 'path': path, 'current_step': 0, 'detection_range': 3, 'chasing': False, 'chase_path': []})
+                    enemies.append({'type': HUNTER, 'path': path, 'current_step': 0, 'detection_range': 3, 'chasing': False, 'chase_path': [], 'active': False})
                     break
 
         return enemies
@@ -124,7 +124,7 @@ class GameMap:
                     print("Congratulations! You reached the finish line.")
                     pygame.quit()
                     sys.exit()
-            elif self.grid[new_y][new_x] == ENEMY:
+            elif self.grid[new_y][new_x] == PAWN or self.grid[new_y][new_x] == HUNTER:
                 print("Game over! You were detected by an enemy.")
                 pygame.quit()
                 sys.exit()
@@ -134,47 +134,71 @@ class GameMap:
         if current_time - self.last_enemy_move_time >= Enemy_movement:
             self.last_enemy_move_time = current_time
             for enemy in self.enemies:
-                path = enemy['path']
-                current_step = enemy['current_step']
-                current_pos = path[current_step]
+                if enemy['type'] == PAWN:
+                    self.move_pawn(enemy)
+                elif enemy['type'] == HUNTER:
+                    self.move_hunter(enemy)
 
-                if enemy['chasing']:
-                    if enemy['chase_path']:
-                        next_pos = enemy['chase_path'].pop(0)
-                        if self.is_position_valid(next_pos):
-                            next_x, next_y = next_pos
-                            if self.grid[next_y][next_x] == PLAYER:
-                                print("Game over! You were detected by an enemy.")
-                                pygame.quit()
-                                sys.exit()
-                            self.grid[current_pos[1]][current_pos[0]] = EMPTY
-                            self.grid[next_y][next_x] = ENEMY
-                            enemy['path'] = [next_pos]
-                            enemy['current_step'] = 0
-                        else:
-                            enemy['chasing'] = False
-                    else:
-                        enemy['chasing'] = False
-                else:
-                    next_step = (current_step + 1) % len(path)
-                    next_pos = path[next_step]
+    def move_pawn(self, pawn):
+        path = pawn['path']
+        current_step = pawn['current_step']
+        next_step = (current_step + 1) % len(path)
+        current_pos = path[current_step]
+        next_pos = path[next_step]
 
-                    if self.grid[current_pos[1]][current_pos[0]] == ENEMY:
-                        self.grid[current_pos[1]][current_pos[0]] = EMPTY
-                    self.grid[next_pos[1]][next_pos[0]] = ENEMY
+        self.grid[current_pos[1]][current_pos[0]] = EMPTY
+        self.grid[next_pos[1]][next_pos[0]] = PAWN
 
-                    enemy['current_step'] = next_step
+        pawn['current_step'] = next_step
 
-                if self.noise_level > 0 and not enemy['chasing']:
-                    player_x, player_y = self.player_pos
-                    enemy_x, enemy_y = path[current_step]
-                    if abs(player_x - enemy_x) + abs(player_y - enemy_y) <= enemy['detection_range']:
+        # Check for noise detection
+        if self.noise_level > 0:
+            player_x, player_y = self.player_pos
+            enemy_x, enemy_y = next_pos
+            if abs(player_x - enemy_x) + abs(player_y - enemy_y) <= 3:
+                for enemy in self.enemies:
+                    if enemy['type'] == HUNTER:
+                        enemy['active'] = True
                         enemy['chasing'] = True
                         enemy['chase_path'] = self.a_star_pathfinding((enemy_x, enemy_y), self.player_pos)
+
+    def move_hunter(self, hunter):
+        path = hunter['path']
+        current_step = hunter['current_step']
+        current_pos = path[current_step]
+
+        if hunter['chasing']:
+            if hunter['chase_path']:
+                next_pos = hunter['chase_path'].pop(0)
+                if self.is_position_valid(next_pos):
+                    next_x, next_y = next_pos
+                    if self.grid[next_y][next_x] == PLAYER:
+                        print("Game over! You were detected by a hunter.")
+                        pygame.quit()
+                        sys.exit()
+                    self.grid[current_pos[1]][current_pos[0]] = EMPTY
+                    self.grid[next_y][next_x] = HUNTER
+                    hunter['path'] = [next_pos]
+                    hunter['current_step'] = 0
+                else:
+                    hunter['chasing'] = False
+            else:
+                hunter['chasing'] = False
+        else:
+            next_step = (current_step + 1) % len(path)
+            next_pos = path[next_step]
+            self.grid[current_pos[1]][current_pos[0]] = EMPTY
+            self.grid[next_pos[1]][next_pos[0]] = HUNTER
+            hunter['current_step'] = next_step
                     
     def a_star_pathfinding(self, start, goal):
-        def heuristic(a, b):
-            return abs(a[0] - b[0]) + abs(a[1] - b[1])
+        def heuristic(pos1, pos2):
+            x1, y1 = pos1
+            x2, y2 = pos2
+            return abs(x1 - x2) + abs(y1 - y2)
+
+        start = (start[1], start[0]) 
+        goal = (goal[1], goal[0])
 
         open_set = PriorityQueue()
         open_set.put((0, start))
@@ -183,7 +207,7 @@ class GameMap:
         f_score = {start: heuristic(start, goal)}
 
         while not open_set.empty():
-            _, current = open_set.get()
+            current = open_set.get()[1]
 
             if current == goal:
                 path = []
@@ -191,14 +215,13 @@ class GameMap:
                     path.append(current)
                     current = came_from[current]
                 path.reverse()
-                return path
+                return [(y, x) for x, y in path]
 
             for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                 neighbor = (current[0] + dx, current[1] + dy)
-                tentative_g_score = g_score[current] + 1
-
-                if 0 <= neighbor[0] < self.width and 0 <= neighbor[1] < self.height:
-                    if self.grid[neighbor[1]][neighbor[0]] != WALL and (neighbor not in g_score or tentative_g_score < g_score[neighbor]):
+                if self.is_position_valid(neighbor):
+                    tentative_g_score = g_score[current] + 1
+                    if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
                         came_from[neighbor] = current
                         g_score[neighbor] = tentative_g_score
                         f_score[neighbor] = tentative_g_score + heuristic(neighbor, goal)
@@ -220,7 +243,9 @@ class GameMap:
                     pygame.draw.rect(screen, (139, 69, 19), rect)
                 elif self.grid[y][x] == EMPTY:
                     pygame.draw.rect(screen, (200, 200, 200), rect)
-                elif self.grid[y][x] == ENEMY:
+                elif self.grid[y][x] == PAWN:
+                    pygame.draw.rect(screen, (255, 165, 0), rect)
+                elif self.grid[y][x] == HUNTER:
                     pygame.draw.rect(screen, (255, 0, 0), rect)
                 elif self.grid[y][x] == FINISH:
                     pygame.draw.rect(screen, (0, 0, 255), rect)
@@ -326,7 +351,7 @@ def main():
         screen.fill((255, 255, 255))
         game_map.render(screen)
         pygame.display.flip()
-        clock.tick(30)
+        clock.tick(180)
 
     pygame.quit()
     sys.exit()
